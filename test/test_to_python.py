@@ -1,10 +1,9 @@
 import unittest
 
 from params_json import Params, CharField, IntField, to_python
-from params_json.params import PARAMS_DEFAULT_FORMAT, to_class
 
 
-class Base(unittest.TestCase):
+class TestToPythonBase(unittest.TestCase):
     def setUp(self) -> None:
         class NotDefaultCustom(Params):
             name = CharField()
@@ -38,33 +37,40 @@ class Base(unittest.TestCase):
         self.default_family_dict = DefaultFamilyDict
         self.not_default_family_list = NotDefaultFamilyList
         self.not_default_family_dict = NotDefaultFamilyDict
+        print(2)
 
-    def test_single_default_to_python(self):
-        """有默认值的class to python """
-        custom = self.default_custom()
-        data = to_python(custom)
-        self.assertEqual(data, {'name': 'gaga', 'age': 10, 'sex': 1})
 
-    def test_single_not_default_to_python(self):
-        """没有默认真class to python"""
+class TestToPythonSingle(TestToPythonBase):
+    """单例 to python
+    default_custom
+    not_default_custom
+    """
+    def setUp(self) -> None:
+        super(TestToPythonSingle, self).setUp()
+
+    def test_not_default_init(self):
+        """单例 没有默认值 不进行初始化"""
         custom = self.not_default_custom()
         data = to_python(custom)
-        self.assertEqual(data, {'name': PARAMS_DEFAULT_FORMAT, 'age': PARAMS_DEFAULT_FORMAT, 'sex': PARAMS_DEFAULT_FORMAT})
+        self.assertEqual(data, {'name': '_default_params_', 'age': '_default_params_', 'sex': '_default_params_'})
 
-    def test_single_to_python_init(self):
-        """有默认值，to python 使用初始化"""
+    def test_default_init(self):
+        """
+        单例 有默认值 不进行初始化
+        :return:
+        """
+        custom = self.default_custom()
+        data = to_python(custom)
+        self.assertEqual(data, {'age': 10, 'name': 'gaga', 'sex': 1})
+
+    def test_not_default_is_init(self):
+        """single, not default, init is True"""
+        custom = self.not_default_custom()
+        data = to_python(custom, is_init=True)
+        self.assertEqual(data, {'name': '_default_params_', 'age': '_default_params_', 'sex': '_default_params_'})
+
+    def test_default_is_init(self):
+        """single, default, init is True"""
         custom = self.default_custom()
         data = to_python(custom, is_init=True)
-        self.assertEqual(data, {'name': PARAMS_DEFAULT_FORMAT, 'age': PARAMS_DEFAULT_FORMAT, 'sex': PARAMS_DEFAULT_FORMAT})
-
-    def test_single_to_python_not_init(self):
-        """有默认值，to python 不使用初始化"""
-        custom = self.default_custom()
-        data = to_python(custom, is_init=False)
-        self.assertEqual(data, {'name': 'gaga', 'age': 10, 'sex': 1})
-
-    def test_single_default_to_class_init(self):
-        """无嵌套 to class 使用初始化"""
-        data = {'name': 'gaga', 'age': 10, 'sex': 1}
-        cls = to_class(data, self.default_custom())
-        self.assertEqual(to_python(cls), data)
+        self.assertEqual(data, {'name': '_default_params_', 'age': '_default_params_', 'sex': '_default_params_'})

@@ -1,140 +1,147 @@
-from typing import List, Dict
+from params_json.errors import ParamsTypeError, CheckError
 
-PARAMS_DEFAULT_FORMAT = '_default_params_'
+DEFAULT_VALUE = 'default_value'
 
-
-class ParamsBase:
-
-    def __init__(self, many=False, many_number=1,
-                 required=True, null=False, blank=False, **kwargs):
-        self.params_many_number = many_number
-        self.params_many = many
-        self.params_blank = blank
-        self.params_required = required
-        self.params_null = null
-        self.params_default = kwargs.pop('default', PARAMS_DEFAULT_FORMAT)
+# KEY
+REQUIRED = '__required'
+MAX_LENGTH = '__max_length'
 
 
-class Field(ParamsBase):
-    pass
+def __get(data: dict, key, default=DEFAULT_VALUE):
+    return data.get(key, default)
 
 
-class CharField(Field):
-    pass
+def _get_max_length(data):
+    return __get(data, MAX_LENGTH)
 
 
-class IntField(Field):
-    pass
+def _get_required(data):
+    return __get(data, REQUIRED)
 
 
-class Params(ParamsBase):
-
-    def __init__(self, content=None, **kwargs):
-        super().__init__(**kwargs)
-        self.params_content = content
-
-        if content is not None:
-            assert isinstance(content, dict), '需要修改内容 key：content的类型必须是dict!'
-
-        self.fields_dict = to_instance(self)
-
-
-def __attrs(cls: object) -> dict:
-    return cls.__class__.__dict__
-
-
-def _to_data(cls: Params, data):
+def _is_back_check(config):
     """
-    根据是否为列表返回内容
-    :param cls:
-    :param data:
+    判断是否需要后续的测试
+    1.如果是非必填的情况下,并且内容为 默认值 DEFAULT_VALUE
+    2.如果是必填字段,但是默认值是 DEFAULT_VALUE
+    3.如果校验 required 没有通过,那么不需要后续的校验
+    :param config:
     :return:
     """
-    if is_many(cls):
-        return [data for _ in range(cls.params_many_number)]
-    return data
 
 
-def is_many(cls: Params) -> bool:
-    return cls.params_many
+def check_required(data, config: dict) -> CheckError or None:
+    _required = _get_required(config)
+    if not isinstance(_required, bool):
+        raise ParamsTypeError(f'{REQUIRED} type is bool!')
+    # required 为 false 不需要校验
+    if _required:
+        if data == DEFAULT_VALUE:
+            return CheckError('')
 
 
-def is_modify(cls, default=PARAMS_DEFAULT_FORMAT):
-    return cls.params_default != default
+def to_config_base(required: bool = True, null: bool = False, blank: bool = False, many: bool = False):
+    return {
+        '__required': required,
+        '__null': null,
+        '__blank': blank,
+        '__many': many,
+        # '__check': ['check_required', 'check_null', 'check_blank']
+        '__check': [check_required]
+    }
 
 
-def is_all_modify(cls) -> List[str]:
-    errors_msg = []
-    error_format = '%s is not modify!'
-    for key, params in to_instance(cls).items():
-        if isinstance(params, Params):
-            _errors_msg = [_ for _ in is_all_modify(params)]
-            if _errors_msg:
-                errors_msg.extend([key + '.' + msg for msg in _errors_msg])
-        else:
-            if not is_modify(params):
-                errors_msg.append(error_format % (key))
-    return errors_msg
+def to_choices_config(choices: list = None):
+    return {
+        '__choices': choices,
+    }
 
 
-__instance_typing = Dict[str, ParamsBase or Params]
+def to_char_config(max_length: int = None, min_length: int = None, length: int = None, choices: list = None,
+                   required: bool = True, null: bool = False, blank: bool = False):
+    if length is None and min_length is None:
+        min_length = 0
+    config = {
+        '__max_length': max_length,
+        '__min_length': min_length,
+        '__length': length,
+        **to_config_base(required=required, null=null, blank=blank),
+        **to_choices_config(choices=choices),
+        # '__check': ['check_max_length', 'check_min_length', 'check_length', 'check_choices']
+        '__check': [check_required]
+    }
+    return config
 
 
-def to_instance(cls: Params) -> __instance_typing:
-    _dict = {}
-    for key, value in __attrs(cls).items():
-        if isinstance(value, ParamsBase):
-            _dict[key] = value
-    return _dict
+def to_integer_config(
+        max_value: int = None, min_value: int = None, choices: list = None,
+        required: bool = True, null: bool = False, blank: bool = False):
+    pass
 
 
-def to_class(data: dict, cls: Params, *, is_default=False) -> Params:
-    for key, value in data.items():
-        if hasattr(cls, key):
-            h = getattr(cls, key)
-            # todo 列表没有处理
-            if isinstance(h, Params) and isinstance(value, dict):
-                setattr(cls, key, to_class(value, h, is_default=is_default))
-            elif isinstance(cls, ParamsBase):
-                h.params_default = value
-                setattr(cls, key, h)
-            else:
-                raise TypeError(f'key: {key} class:{cls} type error!')
-    return cls
-
-
-def to_python(cls: Params, *, content=None, is_default=False):
+def to_config(
+        target: dict = None, many: bool = False,
+        max_length: int = None, min_length: int = None, length: int = None,
+        required: bool = True, null: bool = False, blank: bool = False):
     """
 
-    :param cls:
-    :param content:
-    :param is_default:
+    :param many:
+    :param target: 列表中的对象,可以是dict, str, int, float...
+    :param max_length:
+    :param min_length:
+    :param length:
+    :param required:
+    :param null:
+    :param blank:
     :return:
     """
-    _dict = {}
-    if is_default:
-        if not isinstance(content, dict):
-            content = {}
-        if cls.params_content is not None:
-            content.update(**cls.params_content)
-    else:
-        content = {}
+    if length is None and min_length is None:
+        min_length = 0
+    config = {
+        '__max_length': max_length,
+        '__min_length': min_length,
+        '__length': length,
+        **to_config_base(required=required, null=null, blank=blank, many=many),
+        **target,
+    }
+    return config
 
-    for key, params in to_instance(cls).items():
-        if isinstance(params, Params):
-            if key in content:
-                _content = content.get(key)
-                # 只满足更新当前类下的列表（整个替换,并不会单独的更新里面的内容）
-                # todo 缺少更新向下递归的列表, {'family': [{'name': 'value1'}, {'name': 'value2'}...]} 暂时不满足这种方式的更新
-                assert isinstance(_content, dict), f'列表不会自动向下更新！ key: {key}'
-                _dict[key] = to_python(params, content=_content, is_default=is_default)
-            else:
-                _dict[key] = to_python(params, is_default=is_default)
-        else:
-            if key in content:
-                _dict[key] = content[key]
-            else:
-                # 更新参数最后的值
-                _dict[key] = _to_data(params, params.params_default)
-    # 返回整个解析的内容
-    return _to_data(cls, _dict)
+
+def _add_error(errors: list, error):
+    if isinstance(error, CheckError):
+        errors.append(error)
+    return errors
+
+
+def _is_check_error(error):
+    return isinstance(error, CheckError)
+
+
+def check_dict(data: dict, config: dict) -> list:
+    errors = []
+    for key, value_c in config.items():
+        # assert key is exist
+        value_d = __get(data, key)
+        error = check_required(value_d, value_c)
+        # 如果返回结果是 CheckError 的子类,那么不需要后续要的校验, 如果是 CheckError 说明该字段在数据中不存在
+        _add_error(errors, error)
+        if _is_check_error(error):
+            continue
+    return errors
+
+
+family = {
+    'name': to_char_config(max_length=10),
+    'age': to_char_config(),
+}
+
+data = {
+    'name': to_char_config(max_length=10),
+    'family': to_config(many=True, target=family)
+}
+
+data1 = {
+}
+
+errors = check_dict(data1, data)
+print(errors)
