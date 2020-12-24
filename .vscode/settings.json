@@ -1,0 +1,11 @@
+{
+    "python.pythonPath": "/Users/jiajintao/.pyenv/versions/params_json_env/bin/python",
+    "code-runner.executorMap": {
+        "python": "/Users/jiajintao/.pyenv/versions/params_json_env/bin/python",
+    },
+    "python.linting.enabled": true,
+    "python.languageServer": "Pylance",
+    "python.autoComplete.addBrackets": true,
+    "python.autoComplete.showAdvancedMembers": true,
+    "python.analysis.autoImportCompletions": true,
+}
